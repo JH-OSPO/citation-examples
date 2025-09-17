@@ -7,3 +7,6 @@ authors:
 title: "Simple Citation Example"
 version: 0.1
 date-released: 2024-03-29
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.1234567
