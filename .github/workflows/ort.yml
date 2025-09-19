@@ -1,5 +1,6 @@
 name: Simple ORT Complete Pipeline
 
+# Trigger on pushes and PRs, plus manual runs
 on:
   push:
     branches: [ main, develop ]
@@ -7,6 +8,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Environment variables for the entire workflow
 env:
   ORT_RESULTS_DIR: ort-results
   ORT_DATA_DIR: ort-data
@@ -14,12 +16,14 @@ env:
 jobs:
   ort-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 180  # 3 hours max
     
     steps:
+    # Step 1: Get the code
     - name: 📥 Checkout Repository
       uses: actions/checkout@v4
 
+    # Step 2: Free up disk space (ORT needs lots of space)
     - name: 🧹 Free Disk Space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -27,13 +31,18 @@ jobs:
         sudo rm -rf /usr/local/share/boost
         df -h
 
+    # Step 3: Create directories with proper permissions
     - name: 📁 Setup Directories
       run: |
         mkdir -p ${{ env.ORT_RESULTS_DIR }}
         mkdir -p ${{ env.ORT_DATA_DIR }}
-        echo "Created directories:"
+        # Set permissions to allow Docker container to write
+        chmod 777 ${{ env.ORT_RESULTS_DIR }}
+        chmod 777 ${{ env.ORT_DATA_DIR }}
+        echo "Created directories with proper permissions:"
         ls -la
 
+    # Step 4: Cache ORT data to speed up future runs
     - name: 💾 Cache ORT Data
       uses: actions/cache@v4
       with:
@@ -42,16 +51,20 @@ jobs:
         restore-keys: |
           ort-cache-
 
+    # Step 5: Pull ORT Docker image
     - name: 🐳 Pull ORT Docker Image
       run: |
         echo "Pulling ORT Docker image..."
         docker pull ghcr.io/oss-review-toolkit/ort:latest --platform linux/x86_64
         echo "✅ ORT image ready"
 
+    # Step 6: ANALYZE - Find dependencies
     - name: 🔍 ORT Analyze (Find Dependencies)
       run: |
         echo "🔍 Starting dependency analysis..."
+        # Run with user mapping to avoid permission issues
         docker run --rm --platform linux/x86_64 \
+          --user $(id -u):$(id -g) \
           -v ${{ github.workspace }}:/project \
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
@@ -61,6 +74,7 @@ jobs:
           -f JSON,YAML
         echo "✅ Analysis complete"
 
+    # Step 7: DOWNLOAD - Get source code
     - name: 📥 ORT Download (Get Source Code)
       run: |
         echo "📥 Downloading source code for dependencies..."
@@ -75,6 +89,7 @@ jobs:
           --data-dir /tmp/ort-data
         echo "✅ Download complete"
 
+    # Step 8: SCAN - Find licenses and copyrights
     - name: 🔎 ORT Scan (Find Licenses)
       run: |
         echo "🔎 Scanning for licenses and copyrights..."
@@ -89,6 +104,7 @@ jobs:
           --data-dir /tmp/ort-data
         echo "✅ Scan complete"
 
+    # Step 9: ADVISE - Check for security vulnerabilities
     - name: 🛡️ ORT Advise (Security Check)
       run: |
         echo "🛡️ Checking for security vulnerabilities..."
@@ -104,6 +120,7 @@ jobs:
           --data-dir /tmp/ort-data
         echo "✅ Security check complete"
 
+    # Step 10: REPORT - Generate final reports
     - name: 📊 ORT Report (Generate Reports)
       run: |
         echo "📊 Generating final reports..."
@@ -127,6 +144,7 @@ jobs:
           --report-formats WebApp,StaticHtml,SpdxDocument,CycloneDx,PlainTextTemplate
         echo "✅ Reports generated"
 
+    # Step 11: Show what we created
     - name: 📋 Show Results Summary
       run: |
         echo "📋 Pipeline Results:"
@@ -146,6 +164,7 @@ jobs:
           echo "📦 Total dependencies found: $DEPS"
         fi
 
+    # Step 12: Create GitHub summary
     - name: 📝 Create Job Summary
       if: always()
       run: |
@@ -164,6 +183,7 @@ jobs:
         echo "2. Open \`StaticHtml/scan-report-web-app.html\` in your browser" >> $GITHUB_STEP_SUMMARY
         echo "3. Review license compliance and security findings" >> $GITHUB_STEP_SUMMARY
 
+    # Step 13: Upload all results as artifacts
     - name: 📤 Upload Complete Results
       uses: actions/upload-artifact@v4
       if: always()
@@ -174,6 +194,7 @@ jobs:
           !${{ env.ORT_DATA_DIR }}/
         retention-days: 30
 
+    # Step 14: Upload just the HTML report (easier to share)
     - name: 📤 Upload HTML Report
       uses: actions/upload-artifact@v4
       if: always()
@@ -182,6 +203,7 @@ jobs:
         path: ${{ env.ORT_RESULTS_DIR }}/StaticHtml/
         retention-days: 90
 
+    # Step 15: Comment on PR with results (if this is a PR)
     - name: 💬 Comment on PR
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
