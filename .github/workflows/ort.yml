@@ -21,8 +21,8 @@ jobs:
 
     - name: Download ORT
       run: |
-        wget https://github.com/oss-review-toolkit/ort/releases/latest/download/ort-cli-linux-x86_64.zip
-        unzip ort-cli-linux-x86_64.zip -d ort
+        wget https://github.com/oss-review-toolkit/ort/releases/download/68.2.0/ort-68.2.0.zip
+        unzip ort-68.2.0.zip -d ort
 
     - name: Run ORT Analyzer
       run: |
