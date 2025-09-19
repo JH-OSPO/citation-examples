@@ -14,7 +14,7 @@ env:
 jobs:
   ort-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     
     steps:
     - name: 📥 Checkout Repository
@@ -53,14 +53,12 @@ jobs:
         echo "🔍 Starting dependency analysis..."
         docker run --rm --platform linux/x86_64 \
           -v ${{ github.workspace }}:/project \
-          -v ${{ github.workspace }}/${{ env.ORT_DATA_DIR }}:/tmp/ort-data \
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
           analyze \
-          -i /project \
-          -o /project/${{ env.ORT_RESULTS_DIR }} \
-          -f JSON,YAML \
-          --data-dir /tmp/ort-data
+          --input-dir /project \
+          --output-dir /project/${{ env.ORT_RESULTS_DIR }} \
+          -f JSON,YAML
         echo "✅ Analysis complete"
 
     - name: 📥 ORT Download (Get Source Code)
@@ -72,8 +70,8 @@ jobs:
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
           download \
-          -i /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
-          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          --input-file /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
+          --output-dir /project/${{ env.ORT_RESULTS_DIR }} \
           --data-dir /tmp/ort-data
         echo "✅ Download complete"
 
@@ -86,8 +84,8 @@ jobs:
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
           scan \
-          -i /project/${{ env.ORT_RESULTS_DIR }}/downloader-result.yml \
-          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          --input-file /project/${{ env.ORT_RESULTS_DIR }}/downloader-result.yml \
+          --output-dir /project/${{ env.ORT_RESULTS_DIR }} \
           --data-dir /tmp/ort-data
         echo "✅ Scan complete"
 
@@ -100,9 +98,9 @@ jobs:
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
           advise \
-          -i /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
-          -o /project/${{ env.ORT_RESULTS_DIR }} \
-          -a OSV \
+          --input-file /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
+          --output-dir /project/${{ env.ORT_RESULTS_DIR }} \
+          --advisors OSV \
           --data-dir /tmp/ort-data
         echo "✅ Security check complete"
 
@@ -124,9 +122,9 @@ jobs:
           -w /project \
           ghcr.io/oss-review-toolkit/ort:latest \
           report \
-          -i $INPUT_FILE \
-          -o /project/${{ env.ORT_RESULTS_DIR }} \
-          -f WebApp,StaticHtml,SpdxDocument,CycloneDx,PlainTextTemplate
+          --input-file $INPUT_FILE \
+          --output-dir /project/${{ env.ORT_RESULTS_DIR }} \
+          --report-formats WebApp,StaticHtml,SpdxDocument,CycloneDx,PlainTextTemplate
         echo "✅ Reports generated"
 
     - name: 📋 Show Results Summary
@@ -148,7 +146,6 @@ jobs:
           echo "📦 Total dependencies found: $DEPS"
         fi
 
-    # Step 12: Create GitHub summary
     - name: 📝 Create Job Summary
       if: always()
       run: |
