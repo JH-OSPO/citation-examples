@@ -29,7 +29,7 @@ jobs:
         ./ort/ort analyze -i . -o ort-results -f JSON
 
     - name: Upload ORT results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ort-results
         path: ort-results
