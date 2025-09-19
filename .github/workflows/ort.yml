@@ -1,35 +1,212 @@
-name: OSS Review Toolkit (ORT)
+name: Simple ORT Complete Pipeline
 
 on:
   push:
-    branches: [test-ort]
+    branches: [ main, develop ]
   pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ORT_RESULTS_DIR: ort-results
+  ORT_DATA_DIR: ort-data
 
 jobs:
-  ort:
+  ort-pipeline:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 60
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v3
+    - name: 🧹 Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        df -h
+
+    - name: 📁 Setup Directories
+      run: |
+        mkdir -p ${{ env.ORT_RESULTS_DIR }}
+        mkdir -p ${{ env.ORT_DATA_DIR }}
+        echo "Created directories:"
+        ls -la
+
+    - name: 💾 Cache ORT Data
+      uses: actions/cache@v4
       with:
-        distribution: 'temurin'
-        java-version: '17'
+        path: ${{ env.ORT_DATA_DIR }}
+        key: ort-cache-${{ hashFiles('**/requirements.txt', '**/package*.json', '**/pom.xml', '**/build.gradle*', '**/Cargo.toml', '**/go.mod', '**/pubspec.yaml') }}
+        restore-keys: |
+          ort-cache-
 
-    - name: Download ORT
+    - name: 🐳 Pull ORT Docker Image
       run: |
-        wget https://github.com/oss-review-toolkit/ort/releases/download/68.2.0/ort-68.2.0.zip
-        unzip ort-68.2.0.zip -d ort
+        echo "Pulling ORT Docker image..."
+        docker pull ghcr.io/oss-review-toolkit/ort:latest --platform linux/x86_64
+        echo "✅ ORT image ready"
 
-    - name: Run ORT Analyzer
+    - name: 🔍 ORT Analyze (Find Dependencies)
       run: |
-        ./ort/ort analyze -i . -o ort-results -f JSON
+        echo "🔍 Starting dependency analysis..."
+        docker run --rm --platform linux/x86_64 \
+          -v ${{ github.workspace }}:/project \
+          -v ${{ github.workspace }}/${{ env.ORT_DATA_DIR }}:/tmp/ort-data \
+          -w /project \
+          ghcr.io/oss-review-toolkit/ort:latest \
+          analyze \
+          -i /project \
+          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          -f JSON,YAML \
+          --data-dir /tmp/ort-data
+        echo "✅ Analysis complete"
 
-    - name: Upload ORT results
+    - name: 📥 ORT Download (Get Source Code)
+      run: |
+        echo "📥 Downloading source code for dependencies..."
+        docker run --rm --platform linux/x86_64 \
+          -v ${{ github.workspace }}:/project \
+          -v ${{ github.workspace }}/${{ env.ORT_DATA_DIR }}:/tmp/ort-data \
+          -w /project \
+          ghcr.io/oss-review-toolkit/ort:latest \
+          download \
+          -i /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
+          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          --data-dir /tmp/ort-data
+        echo "✅ Download complete"
+
+    - name: 🔎 ORT Scan (Find Licenses)
+      run: |
+        echo "🔎 Scanning for licenses and copyrights..."
+        docker run --rm --platform linux/x86_64 \
+          -v ${{ github.workspace }}:/project \
+          -v ${{ github.workspace }}/${{ env.ORT_DATA_DIR }}:/tmp/ort-data \
+          -w /project \
+          ghcr.io/oss-review-toolkit/ort:latest \
+          scan \
+          -i /project/${{ env.ORT_RESULTS_DIR }}/downloader-result.yml \
+          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          --data-dir /tmp/ort-data
+        echo "✅ Scan complete"
+
+    - name: 🛡️ ORT Advise (Security Check)
+      run: |
+        echo "🛡️ Checking for security vulnerabilities..."
+        docker run --rm --platform linux/x86_64 \
+          -v ${{ github.workspace }}:/project \
+          -v ${{ github.workspace }}/${{ env.ORT_DATA_DIR }}:/tmp/ort-data \
+          -w /project \
+          ghcr.io/oss-review-toolkit/ort:latest \
+          advise \
+          -i /project/${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml \
+          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          -a OSV \
+          --data-dir /tmp/ort-data
+        echo "✅ Security check complete"
+
+    - name: 📊 ORT Report (Generate Reports)
+      run: |
+        echo "📊 Generating final reports..."
+        
+        # Find the most complete result file to use as input
+        if [ -f "${{ env.ORT_RESULTS_DIR }}/scan-result.yml" ]; then
+          INPUT_FILE="/project/${{ env.ORT_RESULTS_DIR }}/scan-result.yml"
+          echo "Using scan results as input"
+        else
+          INPUT_FILE="/project/${{ env.ORT_RESULTS_DIR }}/advisor-result.yml"
+          echo "Using advisor results as input"
+        fi
+        
+        docker run --rm --platform linux/x86_64 \
+          -v ${{ github.workspace }}:/project \
+          -w /project \
+          ghcr.io/oss-review-toolkit/ort:latest \
+          report \
+          -i $INPUT_FILE \
+          -o /project/${{ env.ORT_RESULTS_DIR }} \
+          -f WebApp,StaticHtml,SpdxDocument,CycloneDx,PlainTextTemplate
+        echo "✅ Reports generated"
+
+    - name: 📋 Show Results Summary
+      run: |
+        echo "📋 Pipeline Results:"
+        echo "==================="
+        ls -la ${{ env.ORT_RESULTS_DIR }}/
+        echo ""
+        echo "📊 Generated Reports:"
+        echo "- Interactive HTML: ${{ env.ORT_RESULTS_DIR }}/StaticHtml/"
+        echo "- SPDX SBOM: ${{ env.ORT_RESULTS_DIR }}/bom.spdx.yml"
+        echo "- CycloneDX SBOM: ${{ env.ORT_RESULTS_DIR }}/bom.json"
+        echo "- Plain Text Report: ${{ env.ORT_RESULTS_DIR }}/NOTICE"
+        echo ""
+        
+        # Count dependencies if analyzer result exists
+        if [ -f "${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml" ]; then
+          DEPS=$(grep -c "^    - " "${{ env.ORT_RESULTS_DIR }}/analyzer-result.yml" 2>/dev/null || echo "0")
+          echo "📦 Total dependencies found: $DEPS"
+        fi
+
+    # Step 12: Create GitHub summary
+    - name: 📝 Create Job Summary
+      if: always()
+      run: |
+        echo "# 🎯 ORT Pipeline Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 Results Overview" >> $GITHUB_STEP_SUMMARY
+        echo "| File | Description |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|-------------|" >> $GITHUB_STEP_SUMMARY
+        echo "| \`StaticHtml/scan-report-web-app.html\` | Interactive dashboard |" >> $GITHUB_STEP_SUMMARY
+        echo "| \`bom.spdx.yml\` | SPDX Software Bill of Materials |" >> $GITHUB_STEP_SUMMARY
+        echo "| \`bom.json\` | CycloneDX SBOM |" >> $GITHUB_STEP_SUMMARY
+        echo "| \`NOTICE\` | License notices |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🎉 Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. Download the \`ort-results\` artifact below" >> $GITHUB_STEP_SUMMARY
+        echo "2. Open \`StaticHtml/scan-report-web-app.html\` in your browser" >> $GITHUB_STEP_SUMMARY
+        echo "3. Review license compliance and security findings" >> $GITHUB_STEP_SUMMARY
+
+    - name: 📤 Upload Complete Results
       uses: actions/upload-artifact@v4
+      if: always()
       with:
-        name: ort-results
-        path: ort-results
+        name: ort-complete-results
+        path: |
+          ${{ env.ORT_RESULTS_DIR }}/
+          !${{ env.ORT_DATA_DIR }}/
+        retention-days: 30
+
+    - name: 📤 Upload HTML Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ort-html-report
+        path: ${{ env.ORT_RESULTS_DIR }}/StaticHtml/
+        retention-days: 90
+
+    - name: 💬 Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          let comment = `## 🎯 ORT Analysis Complete\n\n`;
+          comment += `✅ Full ORT pipeline executed successfully!\n\n`;
+          comment += `### 📁 Results Available:\n`;
+          comment += `- **Interactive Report**: Download \`ort-html-report\` artifact\n`;
+          comment += `- **Complete Analysis**: Download \`ort-complete-results\` artifact\n`;
+          comment += `- **SPDX SBOM**: Software Bill of Materials generated\n`;
+          comment += `- **Security Scan**: Vulnerability analysis included\n\n`;
+          comment += `### 🔗 Quick Access:\n`;
+          comment += `- [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+          comment += `- [Download Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)\n\n`;
+          comment += `Open \`StaticHtml/scan-report-web-app.html\` from the HTML report artifact to view the interactive dashboard! 🚀`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
