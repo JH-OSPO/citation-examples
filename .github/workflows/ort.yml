@@ -2,7 +2,7 @@ name: Run ORT
 on:
   pull_request:
     branches:
-      - main
+      - '**'
 
 jobs:
   call-ort:
