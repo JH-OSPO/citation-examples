@@ -6,7 +6,7 @@ on:
 
 jobs:
   call-ort:
-    uses: org-name/org-actions/.github/workflows/ort-reusable.yml@main
+    uses: JH-OSPO/org-actions/.github/workflows/ort-base.yml@main
     with:
       repo-path: .
       ort-output: ort-results
