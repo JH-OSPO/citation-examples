@@ -2,7 +2,8 @@ name: Run ORT
 on:
   pull_request:
     branches:
-      - '**'
+      - 'main'
+      - 'test-ort'
 
 jobs:
   call-ort:
