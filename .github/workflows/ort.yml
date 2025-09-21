@@ -1,6 +1,8 @@
-name: Run ORT Scan via reusable workflow
+name: Run ORT
 on:
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 jobs:
   call-ort:
