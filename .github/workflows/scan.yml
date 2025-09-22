@@ -1,17 +1,16 @@
-name: "Run ScanCode from Action Repo"
+name: "Run ScanCode"
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
 
 jobs:
-  run_scancode:
+  scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Run ScanCode
-        uses: JH-OSPO/org-actions/.github/workflows/actions@main
+      - name: Scan with ScanCode
+        uses: JH-OSPO/org-actions@v1
         with:
           scan-path: "."
           output-name: "scan-results"
