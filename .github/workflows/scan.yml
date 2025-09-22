@@ -1,0 +1,24 @@
+name: "Run ScanCode from Action Repo"
+
+on:
+  workflow_call:
+    inputs:
+      scan-path:
+        required: true
+        type: string
+      output-name:
+        required: true
+        type: string
+
+jobs:
+  run_scancode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ScanCode
+        uses: scanlon/scanCode-action@v1
+        with:
+          path: ${{ inputs.scan-path }}
+          output: ${{ inputs.output-name }}
