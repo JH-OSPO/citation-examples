@@ -4,10 +4,9 @@ on:
     branches:
       - 'main'
       - 'test-ort'
-
 jobs:
   call-ort:
-    uses: JH-OSPO/org-actions/.github/workflows/ort-base.yml@453bd0e2551594022a4c3dd5b137d7b13dfb37be
+    uses: ./.github/workflows/ort-base.yml
     with:
       repo-path: .
       ort-output: ort-results
