@@ -1,17 +1,17 @@
-name: "Run ScanCode"
+name: License & Copyright Scan
 
 on:
+  push:
+    branches: [ main, develop ]
   pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  scan:
+  scancode:
     runs-on: ubuntu-latest
     steps:
-      - name: Scan with ScanCode
-        uses: JH-OSPO/org-actions@main
+      - name: Run ScanCode Analysis
+        uses: your-org/scancode-action@v1
         with:
           scan-path: "."
-          output-name: "scan-results"
+          output-name: "scancode-results"
