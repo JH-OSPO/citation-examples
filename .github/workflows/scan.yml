@@ -1,17 +1,16 @@
 name: License & Copyright Scan
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    types: [opened, synchronize, reopened]
 
 jobs:
   scancode:
     runs-on: ubuntu-latest
     steps:
       - name: Run ScanCode Analysis
-        uses: JH-OSPO/org-actions@main
+        uses: JH-OSPO/org-actions@v1
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           scan-path: "."
           output-name: "scancode-results"
