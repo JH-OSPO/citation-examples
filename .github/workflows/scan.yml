@@ -12,5 +12,5 @@ jobs:
         uses: JH-OSPO/org-actions@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          scan-path: "."
+          scan-path: .
           output-name: "scancode-results"
