@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run ScanCode Analysis
-        uses: JH-OSPO/org-actions@v1
+        uses: JH-OSPO/org-actions@main
         with:
           scan-path: "."
           output-name: "scancode-results"
