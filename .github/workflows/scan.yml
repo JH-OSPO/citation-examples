@@ -1,4 +1,4 @@
-name: License & Copyright Scan
+name: ScanCode Analysis
 
 on:
   pull_request:
