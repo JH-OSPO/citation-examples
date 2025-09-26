@@ -1,0 +1,16 @@
+name: ScanCode Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  scancode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run ScanCode Analysis
+        uses: JH-OSPO/org-actions@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          scan-path: .
+          output-name: "scancode-results"
