@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run ScanCode Analysis
-        uses: JH-OSPO/org-actions@e9ba754c3e23115ff1ba9123a5d33534c00f96df
+        uses: JH-OSPO/org-actions@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           scan-path: .
